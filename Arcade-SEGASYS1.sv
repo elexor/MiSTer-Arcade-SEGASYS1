@@ -82,7 +82,7 @@ assign VGA_F1	 = 0;
 assign LED_USER  = ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
-assign BUTTONS   = llapi_osd;
+assign BUTTONS = llapi_osd;
 
 assign HDMI_ARX = status[1] ? 8'd16 : 8'd4;
 assign HDMI_ARY = status[1] ? 8'd9  : 8'd3;
@@ -236,19 +236,16 @@ LLAPI llapi2
 // "J1,Skip,Start 1P,Start 2P,Coin;",
 
 wire [15:0] joy_ll_a = { 8'd0,
-	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
-	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24]                   // d-pad
+	llapi_buttons[4],  llapi_buttons[22], llapi_buttons[5],  llapi_buttons[0], llapi_buttons[2],  // Coin Start-2P Start-1P Skip
+	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24]                    // d-pad
 };
 
 wire [15:0] joy_ll_b = { 8'd0,
-	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
-	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24]                   // d-pad
+	llapi_buttons2[22], llapi_buttons2[4],  llapi_buttons2[5],  llapi_buttons2[0], llapi_buttons2[2],  // Coin Start-2P Start-1P Skip
+	llapi_buttons2[27], llapi_buttons2[26], llapi_buttons2[25], llapi_buttons2[24]                     // d-pad
 };
 
 wire llapi_osd = (llapi_buttons[26] && llapi_buttons[5] && llapi_buttons[0]) || (llapi_buttons2[26] && llapi_buttons2[5] && llapi_buttons2[0]);
-
-wire [15:0] joy1 = joystk1 | joy_ll_a;
-wire [15:0] joy2 = joystk2 | joy_ll_b; 
 
 
 reg [7:0] tno;
@@ -310,25 +307,25 @@ reg btn_trig1_2 = 0;
 reg btn_trig2_2 = 0;
 
 
-wire m_up2     = btn_up_2    | joy2[3];
-wire m_down2   = btn_down_2  | joy2[2];
-wire m_left2   = btn_left_2  | joy2[1];
-wire m_right2  = btn_right_2 | joy2[0];
-wire m_trig21  = btn_trig1_2 | joy2[4];
-wire m_trig22  = btn_trig2_2 | joy2[5];
+wire m_up2     = btn_up_2    | joy_ll_b[3];
+wire m_down2   = btn_down_2  | joy_ll_b[2];
+wire m_left2   = btn_left_2  | joy_ll_b[1];
+wire m_right2  = btn_right_2 | joy_ll_b[0];
+wire m_trig21  = btn_trig1_2 | joy_ll_b[4];
+wire m_trig22  = btn_trig2_2 | joy_ll_b[5];
 
-wire m_start1  = btn_one_player  | joy1[6] | joy2[6] | btn_start_1;
-wire m_start2  = btn_two_players | joy1[7] | joy2[7] | btn_start_2;
+wire m_start1  = btn_one_player  | joy_ll_a[6] | joy_ll_b[6] | btn_start_1;
+wire m_start2  = btn_two_players | joy_ll_a[7] | joy_ll_b[7] | btn_start_2;
 
-wire m_up1     = btn_up      | joy1[3] | (bCabinet ? 1'b0 : m_up2);
-wire m_down1   = btn_down    | joy1[2] | (bCabinet ? 1'b0 : m_down2);
-wire m_left1   = btn_left    | joy1[1] | (bCabinet ? 1'b0 : m_left2);
-wire m_right1  = btn_right   | joy1[0] | (bCabinet ? 1'b0 : m_right2);
-wire m_trig11  = btn_trig1   | joy1[4] | (bCabinet ? 1'b0 : m_trig21);
-wire m_trig12  = btn_trig2   | joy1[5] | (bCabinet ? 1'b0 : m_trig22);
+wire m_up1     = btn_up      | joy_ll_a[3] | (bCabinet ? 1'b0 : m_up2);
+wire m_down1   = btn_down    | joy_ll_a[2] | (bCabinet ? 1'b0 : m_down2);
+wire m_left1   = btn_left    | joy_ll_a[1] | (bCabinet ? 1'b0 : m_left2);
+wire m_right1  = btn_right   | joy_ll_a[0] | (bCabinet ? 1'b0 : m_right2);
+wire m_trig11  = btn_trig1   | joy_ll_a[4] | (bCabinet ? 1'b0 : m_trig21);
+wire m_trig12  = btn_trig2   | joy_ll_a[5] | (bCabinet ? 1'b0 : m_trig22);
 
-wire m_coin1   = btn_one_player | btn_coin_1 | joy1[8];
-wire m_coin2   = btn_two_players| btn_coin_2 | joy2[8];
+wire m_coin1   = btn_one_player | btn_coin_1 | joy_ll_a[8];
+wire m_coin2   = btn_two_players| btn_coin_2 | joy_ll_b[8];
 wire m_coin    = (m_coin1|m_coin2);
 
 
