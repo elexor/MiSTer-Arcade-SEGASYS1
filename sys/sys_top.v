@@ -1118,6 +1118,8 @@ assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQM
 `endif
 assign {ADC_SCK, ADC_SDI, ADC_CONVST} = 0;
 
+wire        osd_status;
+
 wire  [6:0] user_out, user_in;
 
 emu emu

@@ -93,6 +93,9 @@ localparam CONF_STR = {
 	"A.SEGASYS1;;",
 	"-;",
         "F0,rom;", // allow loading of alternate ROMs
+	"H0-;",
+	"HFO1,Aspect Ratio,Original,Wide;",
+	"HFO2,Orientation,Vert,Horz;",
 	"-;",
 	"O1,Aspect Ratio,Original,Wide;",
 	"O35,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
@@ -111,16 +114,15 @@ wire [7:0] DSW1 = 8'hFE;
 
 ////////////////////   CLOCKS   ///////////////////
 
-wire clk_hdmi;
 wire clk_48M;
-wire clk_sys = clk_hdmi;
+wire clk_hdmi = clk_48M;
+wire clk_sys = clk_48M;
 
 pll pll
 (
 	.rst(0),
 	.refclk(CLK_50M),
-	.outclk_0(clk_48M),
-	.outclk_1(clk_hdmi)
+	.outclk_0(clk_48M)
 );
 
 ///////////////////////////////////////////////////
@@ -141,6 +143,7 @@ wire [10:0] ps2_key;
 wire [15:0] joystk1, joystk2;
 wire [15:0] joystick_analog_0;
 wire [15:0] joystick_analog_1;
+wire [14:0] menumask = ~(15'd1 << tno);
 wire [21:0] gamma_bus;
 
 hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
