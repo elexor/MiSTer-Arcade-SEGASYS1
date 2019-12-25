@@ -12,3 +12,4 @@ set_global_assignment -name VERILOG_FILE src/SN76496.v
 set_global_assignment -name VERILOG_FILE src/parts.v
 set_global_assignment -name VERILOG_FILE src/HVGEN.v
 set_global_assignment -name SYSTEMVERILOG_FILE "Arcade-SEGASYS1.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "llapi.sv"

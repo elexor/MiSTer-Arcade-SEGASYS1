@@ -13,7 +13,7 @@ module  pll_0002(
 	// interface 'outclk1'
 	output wire outclk_1,
 
-	// interface 'outclk1'
+	// interface 'outclk2'
 	output wire outclk_2,
 
 	// interface 'locked'

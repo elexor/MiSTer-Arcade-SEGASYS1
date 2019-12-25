@@ -29,7 +29,7 @@ module emu
 	output        VGA_HS,
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
-	output		  VGA_F1,
+	output	      VGA_F1,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        HDMI_CLK,
@@ -58,6 +58,11 @@ module emu
 	output  [1:0] LED_POWER,
 	output  [1:0] LED_DISK,
 
+        // I/O board button press simulation (active high)
+	// b[1]: user button
+	// b[0]: osd button
+	output  [1:0] BUTTONS,
+
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
@@ -68,14 +73,16 @@ module emu
 	// 2..6 - USR2..USR6
 	// Set USER_OUT to 1 to read from USER_IN.
 	input   [6:0] USER_IN,
-	output  [6:0] USER_OUT
+	output  [6:0] USER_OUT,
+	
+	input         OSD_STATUS
 );
 
-assign VGA_F1	  = 0;
-assign USER_OUT  = '1;
+assign VGA_F1	 = 0;
 assign LED_USER  = ioctl_download;
 assign LED_DISK  = 0;
 assign LED_POWER = 0;
+assign BUTTONS   = llapi_osd;
 
 assign HDMI_ARX = status[1] ? 8'd16 : 8'd4;
 assign HDMI_ARY = status[1] ? 8'd9  : 8'd3;
@@ -85,8 +92,12 @@ assign HDMI_ARY = status[1] ? 8'd9  : 8'd3;
 localparam CONF_STR = {
 	"A.SEGASYS1;;",
 	"-;",
+        "F0,rom;", // allow loading of alternate ROMs
+	"-;",
 	"O1,Aspect Ratio,Original,Wide;",
 	"O35,Scandoubler Fx,None,HQ2x,CRT 25%,CRT 50%,CRT 75%;",
+	"-;",
+	"OM,Serial Mode,Off,LLAPI;",
 	"-;",
 	"R0,Reset;",
 	"J1,Trig1,Trig2,Start 1P,Start 2P,Coin;",
@@ -117,12 +128,12 @@ pll pll
 wire [31:0] status;
 wire  [1:0] buttons;
 wire        forced_scandoubler;
-wire		direct_video;
+wire	    direct_video;
 
 
 wire        ioctl_download;
 wire        ioctl_wr;
-wire  [7:0]	ioctl_index;
+wire  [7:0] ioctl_index;
 wire [24:0] ioctl_addr;
 wire  [7:0] ioctl_dout;
 
@@ -161,6 +172,84 @@ hps_io #(.STRLEN($size(CONF_STR)>>3)) hps_io
 
 	.ps2_key(ps2_key)
 );
+
+////////////////////////////  LLAPI  ///////////////////////////////////
+
+wire [31:0] llapi_buttons, llapi_buttons2;
+wire [71:0] llapi_analog, llapi_analog2;
+wire [7:0]  llapi_type, llapi_type2;
+wire llapi_en, llapi_en2;
+
+wire llapi_select = status[22];
+
+wire llapi_latch_o, llapi_latch_o2, llapi_data_o, llapi_data_o2;
+
+// Indexes:
+// 0 = D+    = P1 Latch
+// 1 = D-    = P1 Data
+// 2 = TX-   = LLAPI Enable
+// 3 = GND_d = N/C
+// 4 = RX+   = P2 Latch
+// 5 = RX-   = P2 Data
+
+always_comb begin
+	USER_OUT = 6'b111111;
+	if (llapi_select) begin
+		USER_OUT[0] = llapi_latch_o;
+		USER_OUT[1] = llapi_data_o;
+		USER_OUT[2] = ~(llapi_select & ~OSD_STATUS);
+		USER_OUT[4] = llapi_latch_o2;
+		USER_OUT[5] = llapi_data_o2;
+	end
+end
+
+LLAPI llapi
+(
+	.CLK_50M(CLK_50M),
+	.LLAPI_SYNC(vblank),
+	.IO_LATCH_IN(USER_IN[0]),
+	.IO_LATCH_OUT(llapi_latch_o),
+	.IO_DATA_IN(USER_IN[1]),
+	.IO_DATA_OUT(llapi_data_o),
+	.ENABLE(llapi_select & ~OSD_STATUS),
+	.LLAPI_BUTTONS(llapi_buttons),
+	.LLAPI_ANALOG(llapi_analog),
+	.LLAPI_TYPE(llapi_type),
+	.LLAPI_EN(llapi_en)
+);
+
+LLAPI llapi2
+(
+	.CLK_50M(CLK_50M),
+	.LLAPI_SYNC(vblank),
+	.IO_LATCH_IN(USER_IN[4]),
+	.IO_LATCH_OUT(llapi_latch_o2),
+	.IO_DATA_IN(USER_IN[5]),
+	.IO_DATA_OUT(llapi_data_o2),
+	.ENABLE(llapi_select & ~OSD_STATUS),
+	.LLAPI_BUTTONS(llapi_buttons2),
+	.LLAPI_ANALOG(llapi_analog2),
+	.LLAPI_TYPE(llapi_type2),
+	.LLAPI_EN(llapi_en2)
+);
+
+// "J1,Skip,Start 1P,Start 2P,Coin;",
+
+wire [15:0] joy_ll_a = { 8'd0,
+	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
+	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+};
+
+wire [15:0] joy_ll_b = { 8'd0,
+	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
+	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+};
+
+wire llapi_osd = (llapi_buttons[26] && llapi_buttons[5] && llapi_buttons[0]) || (llapi_buttons2[26] && llapi_buttons2[5] && llapi_buttons2[0]);
+
+wire [15:0] joy1 = joystk1 | joy_ll_a;
+wire [15:0] joy2 = joystk2 | joy_ll_b; 
+
 
 reg [7:0] tno;
 always @(posedge clk_sys) begin
@@ -221,25 +310,25 @@ reg btn_trig1_2 = 0;
 reg btn_trig2_2 = 0;
 
 
-wire m_up2     = btn_up_2    | joystk2[3];
-wire m_down2   = btn_down_2  | joystk2[2];
-wire m_left2   = btn_left_2  | joystk2[1];
-wire m_right2  = btn_right_2 | joystk2[0];
-wire m_trig21  = btn_trig1_2 | joystk2[4];
-wire m_trig22  = btn_trig2_2 | joystk2[5];
+wire m_up2     = btn_up_2    | joy2[3];
+wire m_down2   = btn_down_2  | joy2[2];
+wire m_left2   = btn_left_2  | joy2[1];
+wire m_right2  = btn_right_2 | joy2[0];
+wire m_trig21  = btn_trig1_2 | joy2[4];
+wire m_trig22  = btn_trig2_2 | joy2[5];
 
-wire m_start1  = btn_one_player  | joystk1[6] | joystk2[6] | btn_start_1;
-wire m_start2  = btn_two_players | joystk1[7] | joystk2[7] | btn_start_2;
+wire m_start1  = btn_one_player  | joy1[6] | joy2[6] | btn_start_1;
+wire m_start2  = btn_two_players | joy1[7] | joy2[7] | btn_start_2;
 
-wire m_up1     = btn_up      | joystk1[3] | (bCabinet ? 1'b0 : m_up2);
-wire m_down1   = btn_down    | joystk1[2] | (bCabinet ? 1'b0 : m_down2);
-wire m_left1   = btn_left    | joystk1[1] | (bCabinet ? 1'b0 : m_left2);
-wire m_right1  = btn_right   | joystk1[0] | (bCabinet ? 1'b0 : m_right2);
-wire m_trig11  = btn_trig1   | joystk1[4] | (bCabinet ? 1'b0 : m_trig21);
-wire m_trig12  = btn_trig2   | joystk1[5] | (bCabinet ? 1'b0 : m_trig22);
+wire m_up1     = btn_up      | joy1[3] | (bCabinet ? 1'b0 : m_up2);
+wire m_down1   = btn_down    | joy1[2] | (bCabinet ? 1'b0 : m_down2);
+wire m_left1   = btn_left    | joy1[1] | (bCabinet ? 1'b0 : m_left2);
+wire m_right1  = btn_right   | joy1[0] | (bCabinet ? 1'b0 : m_right2);
+wire m_trig11  = btn_trig1   | joy1[4] | (bCabinet ? 1'b0 : m_trig21);
+wire m_trig12  = btn_trig2   | joy1[5] | (bCabinet ? 1'b0 : m_trig22);
 
-wire m_coin1   = btn_one_player | btn_coin_1 | joystk1[8];
-wire m_coin2   = btn_two_players| btn_coin_2 | joystk2[8];
+wire m_coin1   = btn_one_player | btn_coin_1 | joy1[8];
+wire m_coin2   = btn_two_players| btn_coin_2 | joy2[8];
 wire m_coin    = (m_coin1|m_coin2);
 
 
@@ -273,7 +362,7 @@ arcade_fx #(256,8) arcade_video
 	.fx(status[5:3])
 );
 
-wire			PCLK;
+wire	      PCLK;
 wire  [8:0] HPOS,VPOS;
 wire  [7:0] POUT;
 HVGEN hvgen

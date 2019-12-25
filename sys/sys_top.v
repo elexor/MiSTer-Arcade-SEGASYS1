@@ -803,7 +803,9 @@ osd hdmi_osd
 	.dout(hdmi_data_osd),
 	.hs_out(hdmi_hs_osd),
 	.vs_out(hdmi_vs_osd),
-	.de_out(hdmi_de_osd)
+	.de_out(hdmi_de_osd),
+
+	.osd_status(osd_status)
 );
 
 reg [23:0] dv_data;
@@ -1154,7 +1156,9 @@ emu emu
 	.AUDIO_R(audio_rs),
 	.AUDIO_S(audio_s),
 	.USER_OUT(user_out),
-	.USER_IN(user_in)
+	.USER_IN(user_in),
+
+	.OSD_STATUS(osd_status)
 );
 
 endmodule
