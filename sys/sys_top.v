@@ -1151,6 +1151,7 @@ emu emu
 	.LED_USER(led_user),
 	.LED_POWER(led_power),
 	.LED_DISK(led_disk),
+	.BUTTONS(btn),
 
 	.AUDIO_L(audio_ls),
 	.AUDIO_R(audio_rs),

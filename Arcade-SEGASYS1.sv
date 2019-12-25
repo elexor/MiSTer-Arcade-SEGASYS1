@@ -236,13 +236,13 @@ LLAPI llapi2
 // "J1,Skip,Start 1P,Start 2P,Coin;",
 
 wire [15:0] joy_ll_a = { 8'd0,
-	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
-	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
+	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24]                   // d-pad
 };
 
 wire [15:0] joy_ll_b = { 8'd0,
-	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
-	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24] // d-pad
+	llapi_buttons[4],  llapi_buttons[5],  llapi_buttons[5],  llapi_buttons[0],  llapi_buttons[2], // Coin Start-2P Start-1P Skip
+	llapi_buttons[27], llapi_buttons[26], llapi_buttons[25], llapi_buttons[24]                   // d-pad
 };
 
 wire llapi_osd = (llapi_buttons[26] && llapi_buttons[5] && llapi_buttons[0]) || (llapi_buttons2[26] && llapi_buttons2[5] && llapi_buttons2[0]);
