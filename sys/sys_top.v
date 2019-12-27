@@ -1,6 +1,6 @@
 //============================================================================
 //
-//  MiSTer hardware abstraction module (Arcade version)
+//  MiSTer hardware abstraction module
 //  (c)2017-2019 Alexey Melnikov
 //
 //  This program is free software; you can redistribute it and/or modify it
@@ -126,16 +126,24 @@ module sys_top
 
 //////////////////////  Secondary SD  ///////////////////////////////////
 
+wire sd_miso;
+wire SD_CS, SD_CLK, SD_MOSI, SD_MISO;
+
 `ifndef DUAL_SDRAM
-	assign SDIO_DAT  = 4'bZZZZ;
-	assign SDIO_CLK  = 1'bZ;
-	assign SDIO_CMD  = 1'bZ;
-	assign SD_SPI_CS = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : 1'bZ;
+	assign SDIO_DAT[2:1]= 2'bZZ;
+	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
+	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
+	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
+	assign sd_miso      = SW[3] ? 1'b1  : SDIO_DAT[0];
+	assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
 `else
-	assign SD_SPI_CS = 1'bZ;
+	assign sd_miso      = 1'b1;
+	assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
 `endif
-assign SD_SPI_CLK  = 1'bZ;
-assign SD_SPI_MOSI = 1'bZ;
+
+assign SD_SPI_CLK  = mcp_sdcd ? 1'bZ    : SD_CLK;
+assign SD_SPI_MOSI = mcp_sdcd ? 1'bZ    : SD_MOSI;
+assign SD_MISO     = mcp_sdcd ? sd_miso : SD_SPI_MISO;
 
 //////////////////////  LEDs/Buttons  ///////////////////////////////////
 
@@ -186,7 +194,7 @@ always @(posedge FPGA_CLK2_50) begin
 
 	div <= div + 1'b1;
 	if(div > 100000) div <= 0;
-	
+
 	if(!div) begin
 		deb_user <= {deb_user[6:0], btn_u | ~KEY[1]};
 		if(&deb_user) btn_user <= 1;
@@ -198,20 +206,19 @@ always @(posedge FPGA_CLK2_50) begin
 	end
 end
 
-
 /////////////////////////  HPS I/O  /////////////////////////////////////
 
 // gp_in[31] = 0 - quick flag that FPGA is initialized (HPS reads 1 when FPGA is not in user mode)
 //                 used to avoid lockups while JTAG loading
-wire [31:0] gp_in = {1'b0, btn_user, btn_osd, SW[3], 8'd0, io_ver, io_ack, io_wide, io_dout};
+wire [31:0] gp_in = {1'b0, btn_user | btn[1], btn_osd | btn[0], SW[3], 8'd0, io_ver, io_ack, io_wide, io_dout};
 wire [31:0] gp_out;
 
-wire  [1:0] io_ver    = 1; // 0 - standard MiST I/O (for quick porting of complex MiST cores). 1 - optimized HPS I/O. 2,3 - reserved for future.
+wire  [1:0] io_ver = 1; // 0 - standard MiST I/O (for quick porting of complex MiST cores). 1 - optimized HPS I/O. 2,3 - reserved for future.
 wire        io_wait;
 wire        io_wide;
 wire [15:0] io_dout;                  
-wire [15:0] io_din    = gp_outr[15:0];
-wire        io_clk    = gp_outr[17];
+wire [15:0] io_din = gp_outr[15:0];
+wire        io_clk = gp_outr[17];
 wire        io_ss0 = gp_outr[18];
 wire        io_ss1 = gp_outr[19];
 wire        io_ss2 = gp_outr[20];
@@ -388,7 +395,15 @@ end
 
 cyclonev_hps_interface_peripheral_uart uart
 (
-	.ri(0)
+	.ri(0),
+	.dsr(uart_dsr),
+	.dcd(uart_dsr),
+	.dtr(uart_dtr),
+
+	.cts(uart_cts),
+	.rts(uart_rts),
+	.rxd(uart_rxd),
+	.txd(uart_txd)
 );
 
 wire aspi_sck,aspi_mosi,aspi_ss;
@@ -447,6 +462,18 @@ sysmem_lite sysmem
 	.reset_hps_cold_req(btn_r),
 
 	//64-bit DDR3 RAM access
+	.ram1_clk(ram_clk),
+	.ram1_address(ram_address),
+	.ram1_burstcount(ram_burstcount),
+	.ram1_waitrequest(ram_waitrequest),
+	.ram1_readdata(ram_readdata),
+	.ram1_readdatavalid(ram_readdatavalid),
+	.ram1_read(ram_read),
+	.ram1_writedata(ram_writedata),
+	.ram1_byteenable(ram_byteenable),
+	.ram1_write(ram_write),
+
+	//64-bit DDR3 RAM access
 	.ram2_clk(clk_audio),
 	.ram2_address((ap_en1 == ap_en2) ? aram_address : pram_address),
 	.ram2_burstcount((ap_en1 == ap_en2) ? aram_burstcount : pram_burstcount),
@@ -497,15 +524,15 @@ ascal
 	.run      (1),
 	.freeze   (0),
 
-	.i_clk    (clk_ihdmi),
-	.i_ce     (ce_hpix),
-	.i_r      (hr_out),
-	.i_g      (hg_out),
-	.i_b      (hb_out),
-	.i_hs     (hhs_fix),
-	.i_vs     (hvs_fix),
+	.i_clk    (clk_vid),
+	.i_ce     (ce_pix),
+	.i_r      (r_out),
+	.i_g      (g_out),
+	.i_b      (b_out),
+	.i_hs     (hs_fix),
+	.i_vs     (vs_fix),
 	.i_fl     (f1),
-	.i_de     (hde_emu),
+	.i_de     (de_emu),
 	.iauto    (1),
 	.himin    (0),
 	.himax    (0),
@@ -625,7 +652,7 @@ wire [15:0] lltune;
 
 pll_hdmi_adj pll_hdmi_adj
 (
-   .clk(FPGA_CLK1_50),
+	.clk(FPGA_CLK1_50),
 	.reset_na(~reset_req),
 
 	.llena(lowlat),
@@ -1096,28 +1123,36 @@ wire [15:0] audio_ls, audio_rs;
 wire        audio_s;
 wire  [1:0] audio_mix;
 wire  [7:0] r_out, g_out, b_out;
-wire        vs_fix, hs_fix, de_emu, vs_emu, hs_emu, f1;
+wire        vs_fix, hs_fix, de_emu, f1;
 wire  [1:0] scanlines;
 wire        clk_sys, clk_vid, ce_pix;
-wire  [7:0] hr_out, hg_out, hb_out;
-wire        hvs_fix, hhs_fix, hde_emu, hvs_emu, hhs_emu;
-wire        clk_ihdmi, ce_hpix;
+
+wire        ram_clk;
+wire [28:0] ram_address;
+wire [7:0]  ram_burstcount;
+wire        ram_waitrequest;
+wire [63:0] ram_readdata;
+wire        ram_readdatavalid;
+wire        ram_read;
+wire [63:0] ram_writedata;
+wire [7:0]  ram_byteenable;
+wire        ram_write;
+
 wire        led_user;
 wire  [1:0] led_power;
 wire  [1:0] led_disk;
+wire  [1:0] btn;
 
-sync_fix hdmi_sync_v(clk_ihdmi, hvs_emu, hvs_fix);
-sync_fix hdmi_sync_h(clk_ihdmi, hhs_emu, hhs_fix);
+wire vs_emu, hs_emu;
 sync_fix sync_v(clk_vid, vs_emu, vs_fix);
 sync_fix sync_h(clk_vid, hs_emu, hs_fix);
 
-assign audio_mix = 0;
-assign {SDRAM_DQ, SDRAM_A, SDRAM_BA, SDRAM_CLK, SDRAM_CKE, SDRAM_DQML, SDRAM_DQMH, SDRAM_nWE, SDRAM_nCAS, SDRAM_nRAS, SDRAM_nCS} = {39{1'bZ}};
-`ifdef DUAL_SDRAM
-	assign {SDRAM2_DQ, SDRAM2_A, SDRAM2_BA, SDRAM2_CLK, SDRAM2_nWE, SDRAM2_nCAS, SDRAM2_nRAS, SDRAM2_nCS} = {36{1'bZ}};
-`endif
-assign {ADC_SCK, ADC_SDI, ADC_CONVST} = 0;
-
+wire        uart_dtr;
+wire        uart_dsr;
+wire        uart_cts;
+wire        uart_rts;
+wire        uart_rxd;
+wire        uart_txd;
 wire        osd_status;
 
 wire  [6:0] user_out, user_in;
@@ -1126,10 +1161,11 @@ emu emu
 (
 	.CLK_50M(FPGA_CLK2_50),
 	.RESET(reset),
-	.HPS_BUS({f1, HDMI_TX_VS, clk_100m, clk_ihdmi, ce_hpix, hde_emu, hhs_fix, hvs_fix, io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
+	.HPS_BUS({f1, HDMI_TX_VS, clk_100m, clk_vid, ce_pix, de_emu, hs_fix, vs_fix, io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
 
-	.VGA_CLK(clk_vid),
-	.VGA_CE(ce_pix),
+	.CLK_VIDEO(clk_vid),
+	.CE_PIXEL(ce_pix),
+
 	.VGA_R(r_out),
 	.VGA_G(g_out),
 	.VGA_B(b_out),
@@ -1137,27 +1173,75 @@ emu emu
 	.VGA_VS(vs_emu),
 	.VGA_DE(de_emu),
 	.VGA_F1(f1),
-
-	.HDMI_CLK(clk_ihdmi),
-	.HDMI_CE(ce_hpix),
-	.HDMI_R(hr_out),
-	.HDMI_G(hg_out),
-	.HDMI_B(hb_out),
-	.HDMI_HS(hhs_emu),
-	.HDMI_VS(hvs_emu),
-	.HDMI_DE(hde_emu),
-	.HDMI_SL(scanlines),
-	.HDMI_ARX(ARX),
-	.HDMI_ARY(ARY),
+	.VGA_SL(scanlines),
 
 	.LED_USER(led_user),
 	.LED_POWER(led_power),
 	.LED_DISK(led_disk),
 	.BUTTONS(btn),
 
+	.VIDEO_ARX(ARX),
+	.VIDEO_ARY(ARY),
+
 	.AUDIO_L(audio_ls),
 	.AUDIO_R(audio_rs),
 	.AUDIO_S(audio_s),
+	.AUDIO_MIX(audio_mix),
+
+	.ADC_BUS({ADC_SCK,ADC_SDO,ADC_SDI,ADC_CONVST}),
+
+	.DDRAM_CLK(ram_clk),
+	.DDRAM_ADDR(ram_address),
+	.DDRAM_BURSTCNT(ram_burstcount),
+	.DDRAM_BUSY(ram_waitrequest),
+	.DDRAM_DOUT(ram_readdata),
+	.DDRAM_DOUT_READY(ram_readdatavalid),
+	.DDRAM_RD(ram_read),
+	.DDRAM_DIN(ram_writedata),
+	.DDRAM_BE(ram_byteenable),
+	.DDRAM_WE(ram_write),
+
+	.SDRAM_DQ(SDRAM_DQ),
+	.SDRAM_A(SDRAM_A),
+	.SDRAM_DQML(SDRAM_DQML),
+	.SDRAM_DQMH(SDRAM_DQMH),
+	.SDRAM_BA(SDRAM_BA),
+	.SDRAM_nCS(SDRAM_nCS),
+	.SDRAM_nWE(SDRAM_nWE),
+	.SDRAM_nRAS(SDRAM_nRAS),
+	.SDRAM_nCAS(SDRAM_nCAS),
+	.SDRAM_CLK(SDRAM_CLK),
+	.SDRAM_CKE(SDRAM_CKE),
+
+`ifdef DUAL_SDRAM
+	.SDRAM2_DQ(SDRAM2_DQ),
+	.SDRAM2_A(SDRAM2_A),
+	.SDRAM2_BA(SDRAM2_BA),
+	.SDRAM2_nCS(SDRAM2_nCS),
+	.SDRAM2_nWE(SDRAM2_nWE),
+	.SDRAM2_nRAS(SDRAM2_nRAS),
+	.SDRAM2_nCAS(SDRAM2_nCAS),
+	.SDRAM2_CLK(SDRAM2_CLK),
+	.SDRAM2_EN(SW[3]),
+`endif
+
+	.SD_SCK(SD_CLK),
+	.SD_MOSI(SD_MOSI),
+	.SD_MISO(SD_MISO),
+	.SD_CS(SD_CS),
+`ifdef DUAL_SDRAM
+	.SD_CD(mcp_sdcd),
+`else
+	.SD_CD(mcp_sdcd & (SW[0] ? VGA_HS : (SW[3] | SDCD_SPDIF))),
+`endif
+
+	.UART_CTS(uart_rts),
+	.UART_RTS(uart_cts),
+	.UART_RXD(uart_txd),
+	.UART_TXD(uart_rxd),
+	.UART_DTR(uart_dsr),
+	.UART_DSR(uart_dtr),
+
 	.USER_OUT(user_out),
 	.USER_IN(user_in),
 

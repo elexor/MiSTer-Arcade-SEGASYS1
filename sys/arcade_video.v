@@ -22,7 +22,7 @@ module arcade_rotate_fx #(parameter WIDTH=320, HEIGHT=240, DW=8, CCW=0, GAMMA=1)
 	input         HSync,
 	input         VSync,
 
-	output        VGA_CLK,
+	output        CLK_VIDEO,
 	output        VGA_CE,
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -32,7 +32,7 @@ module arcade_rotate_fx #(parameter WIDTH=320, HEIGHT=240, DW=8, CCW=0, GAMMA=1)
 	output        VGA_DE,
 
 	output        HDMI_CLK,
-	output        HDMI_CE,
+	output        CE_PIXEL,
 	output  [7:0] HDMI_R,
 	output  [7:0] HDMI_G,
 	output  [7:0] HDMI_B,
@@ -65,7 +65,7 @@ arcade_vga #(DW) vga
 	.VSync(VSync),
 
 	.RGB_out(RGB_fix),
-	.VGA_CLK(VGA_CLK),
+	.CLK_VIDEO(CLK_VIDEO),
 	.VGA_CE(CE),
 	.VGA_R(R),
 	.VGA_G(G),
@@ -81,7 +81,7 @@ wire rhs,rvs,rhblank,rvblank;
 
 screen_rotate #(WIDTH,HEIGHT,DW,4,CCW) rotator
 (
-	.clk(VGA_CLK),
+	.clk(CLK_VIDEO),
 	.ce(CE),
 
 	.video_in(RGB_fix),
@@ -122,9 +122,9 @@ generate
 endgenerate
 
 reg norot;
-always @(posedge VGA_CLK) norot <= no_rotate | direct_video;
+always @(posedge CLK_VIDEO) norot <= no_rotate | direct_video;
 
-assign HDMI_CLK = VGA_CLK;
+assign HDMI_CLK = CLK_VIDEO;
 assign HDMI_SL  = (no_rotate & ~direct_video) ? 2'd0 : sl[1:0];
 wire [2:0] sl = fx ? fx - 1'd1 : 3'd0;
 wire scandoubler = fx || forced_scandoubler;
@@ -133,7 +133,7 @@ video_mixer #(WIDTH+4, 1, GAMMA) video_mixer
 (
 	.clk_vid(HDMI_CLK),
 	.ce_pix(CE | (~scandoubler & ~gamma_bus[19] & ~direct_video)),
-	.ce_pix_out(HDMI_CE),
+	.ce_pix_out(CE_PIXEL),
 
 	.scandoubler(scandoubler),
 	.hq2x(fx==1),
@@ -156,7 +156,7 @@ video_mixer #(WIDTH+4, 1, GAMMA) video_mixer
 	.VGA_DE(HDMI_DE)
 );
 
-assign VGA_CE = direct_video ? HDMI_CE : CE;
+assign VGA_CE = direct_video ? CE_PIXEL : CE;
 assign VGA_R  = direct_video ? HDMI_R  : R;
 assign VGA_G  = direct_video ? HDMI_G  : G;
 assign VGA_B  = direct_video ? HDMI_B  : B;
@@ -184,7 +184,7 @@ module arcade_fx #(parameter WIDTH=320, DW=8, GAMMA=1)
 	input         HSync,
 	input         VSync,
 
-	output        VGA_CLK,
+	output        CLK_VIDEO,
 	output        VGA_CE,
 	output  [7:0] VGA_R,
 	output  [7:0] VGA_G,
@@ -194,7 +194,7 @@ module arcade_fx #(parameter WIDTH=320, DW=8, GAMMA=1)
 	output        VGA_DE,
 
 	output        HDMI_CLK,
-	output        HDMI_CE,
+	output        CE_PIXEL,
 	output  [7:0] HDMI_R,
 	output  [7:0] HDMI_G,
 	output  [7:0] HDMI_B,
@@ -223,7 +223,7 @@ arcade_vga #(DW) vga
 	.HSync(HSync),
 	.VSync(VSync),
 
-	.VGA_CLK(VGA_CLK),
+	.CLK_VIDEO(CLK_VIDEO),
 	.VGA_CE(CE),
 	.VGA_R(R),
 	.VGA_G(G),
@@ -234,7 +234,7 @@ arcade_vga #(DW) vga
 	.VGA_VBL(VBL)
 );
 
-assign HDMI_CLK = VGA_CLK;
+assign HDMI_CLK = CLK_VIDEO;
 assign HDMI_SL  = sl[1:0];
 wire [2:0] sl = fx ? fx - 1'd1 : 3'd0;
 wire scandoubler = fx || forced_scandoubler;
@@ -243,7 +243,7 @@ video_mixer #(WIDTH+4, 1, GAMMA) video_mixer
 (
 	.clk_vid(HDMI_CLK),
 	.ce_pix(CE),
-	.ce_pix_out(HDMI_CE),
+	.ce_pix_out(CE_PIXEL),
 
 	.scandoubler(scandoubler),
 	.hq2x(fx==1),
@@ -266,7 +266,7 @@ video_mixer #(WIDTH+4, 1, GAMMA) video_mixer
 	.VGA_DE(HDMI_DE)
 );
 
-assign VGA_CE = HDMI_CE;
+assign VGA_CE = CE_PIXEL;
 assign VGA_R  = HDMI_R;
 assign VGA_G  = HDMI_G;
 assign VGA_B  = HDMI_B;
@@ -290,7 +290,7 @@ module arcade_vga #(parameter DW)
 	input          VSync,
 
 	output[DW-1:0] RGB_out,
-	output         VGA_CLK,
+	output         CLK_VIDEO,
 	output reg     VGA_CE,
 	output  [7:0]  VGA_R,
 	output  [7:0]  VGA_G,
@@ -301,15 +301,15 @@ module arcade_vga #(parameter DW)
 	output reg     VGA_VBL
 );
 
-assign VGA_CLK = clk_video;
+assign CLK_VIDEO = clk_video;
 
 wire hs_fix,vs_fix;
-sync_fix sync_v(VGA_CLK, HSync, hs_fix);
-sync_fix sync_h(VGA_CLK, VSync, vs_fix);
+sync_fix sync_v(CLK_VIDEO, HSync, hs_fix);
+sync_fix sync_h(CLK_VIDEO, VSync, vs_fix);
 
 reg [DW-1:0] RGB_fix;
 
-always @(posedge VGA_CLK) begin
+always @(posedge CLK_VIDEO) begin
 	reg old_ce;
 	old_ce <= ce_pix;
 	VGA_CE <= 0;

@@ -17,7 +17,7 @@ module emu
 	inout  [45:0] HPS_BUS,
 
 	//Base video clock. Usually equals to CLK_SYS.
-	output        VGA_CLK,
+	output        CLK_VIDEO,
 
 	//Multiple resolutions are supported using different VGA_CE rates.
 	//Must be based on CLK_VIDEO
@@ -30,13 +30,14 @@ module emu
 	output        VGA_VS,
 	output        VGA_DE,    // = ~(VBlank | HBlank)
 	output	      VGA_F1,
+	output  [1:0] VGA_SL,
 
 	//Base video clock. Usually equals to CLK_SYS.
 	output        HDMI_CLK,
 
-	//Multiple resolutions are supported using different HDMI_CE rates.
+	//Multiple resolutions are supported using different CE_PIXEL rates.
 	//Must be based on CLK_VIDEO
-	output        HDMI_CE,
+	output        CE_PIXEL,
 
 	output  [7:0] HDMI_R,
 	output  [7:0] HDMI_G,
@@ -47,8 +48,8 @@ module emu
 	output  [1:0] HDMI_SL,   // scanlines fx
 
 	//Video aspect ratio for HDMI. Most retro systems have ratio 4:3.
-	output  [7:0] HDMI_ARX,
-	output  [7:0] HDMI_ARY,
+	output  [7:0] VIDEO_ARX,
+	output  [7:0] VIDEO_ARY,
 
 	output        LED_USER,  // 1 - ON, 0 - OFF.
 
@@ -66,6 +67,50 @@ module emu
 	output [15:0] AUDIO_L,
 	output [15:0] AUDIO_R,
 	output        AUDIO_S,   // 1 - signed audio samples, 0 - unsigned
+	output  [1:0] AUDIO_MIX, // 0 - no mix, 1 - 25%, 2 - 50%, 3 - 100% (mono)
+
+	//ADC
+	inout   [3:0] ADC_BUS,
+
+	//SD-SPI
+	output        SD_SCK,
+	output        SD_MOSI,
+	input         SD_MISO,
+	output        SD_CS,
+	input         SD_CD,
+
+	//High latency DDR3 RAM interface
+	//Use for non-critical time purposes
+	output        DDRAM_CLK,
+	input         DDRAM_BUSY,
+	output  [7:0] DDRAM_BURSTCNT,
+	output [28:0] DDRAM_ADDR,
+	input  [63:0] DDRAM_DOUT,
+	input         DDRAM_DOUT_READY,
+	output        DDRAM_RD,
+	output [63:0] DDRAM_DIN,
+	output  [7:0] DDRAM_BE,
+	output        DDRAM_WE,
+
+	//SDRAM interface with lower latency
+	output        SDRAM_CLK,
+	output        SDRAM_CKE,
+	output [12:0] SDRAM_A,
+	output  [1:0] SDRAM_BA,
+	inout  [15:0] SDRAM_DQ,
+	output        SDRAM_DQML,
+	output        SDRAM_DQMH,
+	output        SDRAM_nCS,
+	output        SDRAM_nCAS,
+	output        SDRAM_nRAS,
+	output        SDRAM_nWE,
+
+	input         UART_CTS,
+	output        UART_RTS,
+	input         UART_RXD,
+	output        UART_TXD,
+	output        UART_DTR,
+	input         UART_DSR,
 	
 	// Open-drain User port.
 	// 0 - D+/RX
@@ -84,8 +129,8 @@ assign LED_DISK  = 0;
 assign LED_POWER = 0;
 assign BUTTONS = llapi_osd;
 
-assign HDMI_ARX = status[1] ? 8'd16 : 8'd4;
-assign HDMI_ARY = status[1] ? 8'd9  : 8'd3;
+assign VIDEO_ARX = status[1] ? 8'd16 : 8'd4;
+assign VIDEO_ARY = status[1] ? 8'd9  : 8'd3;
 
 `include "build_id.v" 
 
